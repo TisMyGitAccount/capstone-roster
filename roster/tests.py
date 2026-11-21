@@ -138,6 +138,15 @@ class IdentityRuleTests(SeededRosterTestCase):
         self.assertEqual(log.deactivated, 0)
         self.assertEqual(Student.objects.get(panthersoft_id=sid(1)).status, "active")
 
+    def test_ID_11_padded_copy_of_an_id_is_classified_as_duplicate(self):
+        padded_copy = rec(1, panthersoft_id=f"  {sid(1)}  ", email="padded.copy@example.edu")
+        log = self.sync(self.base + [padded_copy])
+        self.assertEqual(log.status, "success")
+        self.assertEqual(self.issue_count("duplicate"), 2)  # both copies set aside
+        self.assertEqual(log.deactivated, 0)
+        self.assertEqual(Student.objects.count(), 30)
+        self.assertEqual(Student.objects.get(panthersoft_id=sid(1)).status, "active")
+
     def test_ID_12_new_source_record_is_added(self):
         log = self.sync(self.base + [rec(99)])
         self.assertEqual(log.added, 1)
