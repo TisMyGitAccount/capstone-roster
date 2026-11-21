@@ -2,39 +2,105 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from .models import RosterAudit, Student, SyncLog
+from .identity import fallback_candidates, id_problem, normalize_id
+from .models import RosterAudit, Student, SyncIssue, SyncLog
 
 TRACKED_FIELDS = ("first_name", "last_name", "email", "term")
 REQUIRED_FIELDS = ("panthersoft_id",) + TRACKED_FIELDS
+Kind = SyncIssue.Kind
 
 
-def _validate(records):
-    """Fail safe: refuse to sync from empty or malformed source data."""
-    if not records:
-        raise ValueError("Source returned no students; roster left unchanged.")
-    seen_ids, seen_emails = set(), set()
-    for rec in records:
-        for field in REQUIRED_FIELDS:
-            if not rec.get(field):
-                raise ValueError(f"Record missing '{field}': {rec}")
-        if rec["panthersoft_id"] in seen_ids:
-            raise ValueError(f"Duplicate ID in source: {rec['panthersoft_id']}")
-        if rec["email"] in seen_emails:
-            raise ValueError(f"Duplicate email in source: {rec['email']}")
-        seen_ids.add(rec["panthersoft_id"])
-        seen_emails.add(rec["email"])
+def _issue(kind, raw, identifier="", **details):
+    return {
+        "kind": kind,
+        "identifier": str(identifier)[:100],
+        "record": raw,
+        "details": details,
+    }
 
 
-def _plan(records, term):
+def _classify(records, students):
+    """Split raw source records into usable records and quarantined issues.
+
+    Returns (clean, present_ids, issues). present_ids holds every valid ID the
+    source mentioned, even if its record was quarantined, so those students
+    are not mistaken for phantoms and deactivated.
+    """
+    issues, present, by_id = [], set(), {}
+
+    for raw in records:
+        sid = normalize_id(raw.get("panthersoft_id"))
+
+        if not sid:  # ID-01, ID-07..09, ID-15: no ID, so only suggest candidates
+            ids = [m.panthersoft_id for m in fallback_candidates(raw, students)]
+            kind = Kind.AMBIGUOUS if len(ids) > 1 else Kind.MISSING_ID
+            issues.append(_issue(kind, raw, possible_matches=ids))
+            continue
+
+        problem = id_problem(sid)
+        if problem:  # ID-05, ID-06, ID-16
+            issues.append(_issue(Kind.INVALID_ID, raw, sid, reason=problem))
+            continue
+
+        present.add(sid)
+        rec = {
+            "panthersoft_id": sid,
+            "first_name": " ".join(str(raw.get("first_name") or "").split()),
+            "last_name": " ".join(str(raw.get("last_name") or "").split()),
+            "email": str(raw.get("email") or "").strip().lower(),
+            "term": str(raw.get("term") or "").strip(),
+        }
+        missing = [f for f in TRACKED_FIELDS if not rec[f]]
+        if missing:
+            issues.append(_issue(Kind.INVALID_RECORD, raw, sid, missing_fields=missing))
+            continue
+        by_id.setdefault(sid, []).append((raw, rec))
+
+    # ID-11: the same ID twice is a duplicate. Neither copy is chosen (ID-15).
+    unique = []
+    for sid, pairs in by_id.items():
+        if len(pairs) > 1:
+            for raw, _ in pairs:
+                issues.append(_issue(Kind.DUPLICATE, raw, sid, copies=len(pairs)))
+        else:
+            unique.append(pairs[0])
+
+    # ID-14: one email can't belong to two different identities.
+    source_emails = {}
+    for _, rec in unique:
+        source_emails.setdefault(rec["email"], []).append(rec["panthersoft_id"])
+    roster_owners = {s.email.lower(): s.panthersoft_id for s in students}
+
+    clean = []
+    for raw, rec in unique:
+        sid, email = rec["panthersoft_id"], rec["email"]
+        others = [i for i in source_emails[email] if i != sid]
+        owner = roster_owners.get(email)
+        if others:
+            issues.append(_issue(
+                Kind.CONFLICT, raw, sid,
+                reason="Email is used by another source record", other_ids=others,
+            ))
+        elif owner and owner != sid:
+            issues.append(_issue(
+                Kind.CONFLICT, raw, sid,
+                reason="Email belongs to a different student on the roster",
+                roster_id=owner,
+            ))
+        else:
+            clean.append(rec)
+    return clean, present, issues
+
+
+def _plan(records, present_ids, term, students):
     """Work out what would change, without touching the database."""
-    existing = {s.panthersoft_id: s for s in Student.objects.all()}
-    source_ids = {r["panthersoft_id"] for r in records}
+    existing = {s.panthersoft_id: s for s in students}
 
     to_add, to_update = [], []
     for rec in records:
         student = existing.get(rec["panthersoft_id"])
         if student is None:
-            to_add.append(rec)
+            to_add.append(rec)  # ID-12: the source is the authority
             continue
         changes = {
             f: [getattr(student, f), rec[f]]
@@ -46,12 +112,12 @@ def _plan(records, term):
         if changes:
             to_update.append((student, rec, changes))
 
-    # Phantoms: active in our copy, but no longer in the source
+    # ID-13: on our roster but absent from the source
     to_deactivate = [
-        s for s in existing.values()
+        s for s in students
         if s.term == term
         and s.status == Student.Status.ACTIVE
-        and s.panthersoft_id not in source_ids
+        and s.panthersoft_id not in present_ids
     ]
     return {"add": to_add, "update": to_update, "deactivate": to_deactivate}
 
@@ -95,21 +161,34 @@ def _apply(plan, term, now, by):
 
 def sync_roster(source, term, triggered_by="sync"):
     threshold = getattr(settings, "ROSTER_SYNC_DEACTIVATION_THRESHOLD", 0.10)
+    reject_threshold = getattr(settings, "ROSTER_SYNC_REJECT_THRESHOLD", 0.10)
     log = SyncLog.objects.create(
         started_at=timezone.now(), status=SyncLog.Status.FAILED
     )
+    issues = []
     try:
         records = source.fetch_enrolled(term)
-        _validate(records)
-        plan = _plan(records, term)
+        if not records:
+            raise ValueError("Source returned no students; roster left unchanged.")
 
+        students = list(Student.objects.all())
+        clean, present_ids, issues = _classify(records, students)
+
+        if len(issues) / len(records) > reject_threshold:
+            bad = len(issues)
+            issues = []
+            raise ValueError(
+                f"{bad} of {len(records)} source records were unusable, so the "
+                "source format may have changed. No changes were applied."
+            )
+
+        plan = _plan(clean, present_ids, term, students)
         active_count = Student.objects.filter(
             term=term, status=Student.Status.ACTIVE
         ).count()
         drop_count = len(plan["deactivate"])
 
         if active_count and drop_count / active_count > threshold:
-            # Sanity threshold: hold the whole sync for admin review
             log.status = SyncLog.Status.PARTIAL
             log.error_message = (
                 f"Blocked: this sync would deactivate {drop_count} of "
@@ -125,10 +204,12 @@ def sync_roster(source, term, triggered_by="sync"):
             log.added, log.updated, log.deactivated = added, updated, deactivated
             log.status = SyncLog.Status.SUCCESS
     except Exception as exc:
-        # Any error rolls back the changes, so the old roster stays intact
+        issues = []
         log.status = SyncLog.Status.FAILED
         log.error_message = str(exc)
 
+    if issues:
+        SyncIssue.objects.bulk_create(SyncIssue(sync_log=log, **i) for i in issues)
     log.finished_at = timezone.now()
     log.save()
     return log

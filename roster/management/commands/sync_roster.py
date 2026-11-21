@@ -33,6 +33,8 @@ class Command(BaseCommand):
             f"Sync {log.status}: added={log.added}, "
             f"updated={log.updated}, deactivated={log.deactivated}"
         )
+        for issue in log.issues.all()[:10]:
+            self.stdout.write(f"  - {issue.kind}: {issue.identifier or '(no ID)'}")
         if log.status == "success":
             self.stdout.write(self.style.SUCCESS(summary))
         else:

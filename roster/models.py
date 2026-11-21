@@ -1,3 +1,4 @@
+from django.core.validators import RegexValidator
 from django.db import models
 
 
@@ -8,7 +9,11 @@ class Student(models.Model):
         PENDING_REVIEW = "pending_review", "Pending review"
 
     # Stable identity key. Names are display-only and never used to match students.
-    panthersoft_id = models.CharField(max_length=20, unique=True)
+    panthersoft_id = models.CharField(
+        max_length=20,
+        unique=True,
+        validators=[RegexValidator(r"^[0-9]+$", "Student IDs contain digits only.")],
+    )
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
@@ -47,6 +52,33 @@ class SyncLog(models.Model):
 
     def __str__(self):
         return f"Sync {self.started_at:%Y-%m-%d %H:%M} ({self.status})"
+
+
+class SyncIssue(models.Model):
+    """A source record that was set aside instead of being applied."""
+
+    class Kind(models.TextChoices):
+        INVALID_ID = "invalid_id", "Invalid ID"
+        INVALID_RECORD = "invalid_record", "Missing required field"
+        MISSING_ID = "missing_id", "Missing ID"
+        DUPLICATE = "duplicate", "Duplicate ID in source"
+        CONFLICT = "conflict", "Conflict"
+        AMBIGUOUS = "ambiguous", "Ambiguous match"
+
+    sync_log = models.ForeignKey(
+        SyncLog, on_delete=models.CASCADE, related_name="issues"
+    )
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    identifier = models.CharField(max_length=100, blank=True)
+    record = models.JSONField(default=dict)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.kind}: {self.identifier or '(no ID)'}"
 
 
 class RosterAudit(models.Model):

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import RosterAudit, Student, SyncLog
+from .models import RosterAudit, Student, SyncIssue, SyncLog
 
 
 @admin.register(Student)
@@ -26,3 +26,9 @@ class RosterAuditAdmin(admin.ModelAdmin):
     list_display = ("created_at", "action", "student", "changed_by")
     list_filter = ("action",)
     search_fields = ("changed_by", "student__panthersoft_id")
+
+@admin.register(SyncIssue)
+class SyncIssueAdmin(admin.ModelAdmin):
+    list_display = ("created_at", "kind", "identifier", "sync_log")
+    list_filter = ("kind",)
+    search_fields = ("identifier",)

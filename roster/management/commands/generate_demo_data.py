@@ -1,6 +1,7 @@
 import json
 import random
 import re
+from collections import Counter
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -8,6 +9,7 @@ from faker import Faker
 
 OUT_DIR = Path(__file__).resolve().parents[2] / "demo_data"
 TERM = "FA26"
+FAKE_ID_BASE = 9000000  # 7-digit, digits-only fake IDs
 
 
 def clean(text):
@@ -17,7 +19,7 @@ def clean(text):
 
 def build(n, first, last):
     return {
-        "panthersoft_id": f"DEMO{n:06d}",
+        "panthersoft_id": str(FAKE_ID_BASE + n),
         "first_name": first,
         "last_name": last,
         "email": f"{clean(first)}.{clean(last)}.{n}@example.edu",
@@ -73,12 +75,38 @@ class Command(BaseCommand):
         # Snapshot 3: a bad export missing roughly 45% of students
         snap3 = rng.sample(snap2, int(len(snap2) * 0.55))
 
+        # Dirty snapshot: snapshot 2 plus messy records (no randomness used)
+        latest = {s["panthersoft_id"]: s for s in snap1}
+        latest.update({s["panthersoft_id"]: s for s in snap2})
+        names = Counter((s["first_name"], s["last_name"]) for s in latest.values())
+        unique_name = next(k for k, c in names.items() if c == 1)
+        shared_name = next(k for k, c in names.items() if c > 1)
+
+        dirty = [dict(s) for s in snap2]
+        for s in dirty[:3]:  # padded IDs: should still match their students
+            s["panthersoft_id"] = f"  {s['panthersoft_id']}  "
+        dirty.extend([
+            # letters in an ID -> invalid_id
+            {**build(400, "Letter", "Id"), "panthersoft_id": "S9000400"},
+            # partial ID -> invalid_id
+            {**build(401, "Partial", "Id"), "panthersoft_id": "90004"},
+            # blank ID, one student has that name -> missing_id
+            {**build(402, *unique_name), "panthersoft_id": ""},
+            # blank ID, several students have that name -> ambiguous
+            {**build(403, *shared_name), "panthersoft_id": ""},
+            # same ID appears twice -> duplicate (both copies)
+            {**snap2[20], "email": "copy.of.record@example.edu"},
+            # email already used by another student -> conflict (both records)
+            {**build(404, "Email", "Clash"), "email": snap2[30]["email"]},
+        ])
+
         for name, data in [
             ("snapshot_1.json", snap1),
             ("snapshot_2.json", snap2),
             ("snapshot_3_mass_drop.json", snap3),
+            ("snapshot_dirty.json", dirty),
         ]:
             save(name, data)
-            self.stdout.write(f"{name}: {len(data)} students")
+            self.stdout.write(f"{name}: {len(data)} records")
 
         self.stdout.write(self.style.SUCCESS(f"Written to {OUT_DIR}"))
