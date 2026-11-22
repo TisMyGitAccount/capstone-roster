@@ -1,5 +1,9 @@
+import hashlib
+import secrets
+
 from django.core.validators import RegexValidator
 from django.db import models
+from django.utils import timezone
 
 
 class Student(models.Model):
@@ -101,3 +105,40 @@ class RosterAudit(models.Model):
 
     def __str__(self):
         return f"{self.action} by {self.changed_by} at {self.created_at:%Y-%m-%d %H:%M}"
+
+
+class ApiToken(models.Model):
+    """A read-only access token for one consuming site. Only a hash is stored."""
+
+    name = models.CharField(max_length=100, unique=True)  # which site it is for
+    prefix = models.CharField(max_length=8, editable=False)
+    key_hash = models.CharField(max_length=64, unique=True, editable=False)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.prefix}...)"
+
+    @staticmethod
+    def hash_key(raw):
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    @classmethod
+    def create_token(cls, name):
+        """Returns (token, raw_key). The raw key is never stored."""
+        raw = secrets.token_urlsafe(32)
+        token = cls.objects.create(
+            name=name, prefix=raw[:8], key_hash=cls.hash_key(raw)
+        )
+        return token, raw
+
+    @classmethod
+    def from_raw_key(cls, raw):
+        token = cls.objects.filter(key_hash=cls.hash_key(raw), is_active=True).first()
+        if token:
+            cls.objects.filter(pk=token.pk).update(last_used_at=timezone.now())
+        return token

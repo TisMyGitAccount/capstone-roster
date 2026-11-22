@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import RosterAudit, Student, SyncIssue, SyncLog
+from .models import ApiToken, RosterAudit, Student, SyncIssue, SyncLog
 
 
 @admin.register(Student)
@@ -32,3 +32,15 @@ class SyncIssueAdmin(admin.ModelAdmin):
     list_display = ("created_at", "kind", "identifier", "sync_log")
     list_filter = ("kind",)
     search_fields = ("identifier",)
+
+@admin.register(ApiToken)
+class ApiTokenAdmin(admin.ModelAdmin):
+    """Tokens are created with `manage.py create_api_token`; here they can be revoked."""
+
+    list_display = ("name", "prefix", "is_active", "created_at", "last_used_at")
+    list_filter = ("is_active",)
+    fields = ("name", "prefix", "is_active", "created_at", "last_used_at")
+    readonly_fields = ("name", "prefix", "created_at", "last_used_at")
+
+    def has_add_permission(self, request):
+        return False

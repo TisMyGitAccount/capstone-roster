@@ -127,3 +127,14 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "roster.api_auth.ApiTokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": ["roster.api_auth.IsRosterReader"],
+}
+
+ROSTER_CURRENT_TERM = "FA26"
+ROSTER_STALE_AFTER_HOURS = 24
