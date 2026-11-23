@@ -159,11 +159,13 @@ def _apply(plan, term, now, by):
     return len(plan["add"]), len(plan["update"]), len(plan["deactivate"])
 
 
-def sync_roster(source, term, triggered_by="sync"):
+def sync_roster(source, term, triggered_by="sync", source_label=""):
     threshold = getattr(settings, "ROSTER_SYNC_DEACTIVATION_THRESHOLD", 0.10)
     reject_threshold = getattr(settings, "ROSTER_SYNC_REJECT_THRESHOLD", 0.10)
     log = SyncLog.objects.create(
-        started_at=timezone.now(), status=SyncLog.Status.FAILED
+        started_at=timezone.now(),
+        status=SyncLog.Status.FAILED,
+        source=source_label[:200],
     )
     issues = []
     try:

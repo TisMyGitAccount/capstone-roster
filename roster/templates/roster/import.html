@@ -1,0 +1,69 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a> &rsaquo;
+  <a href="{% url 'admin:roster_student_changelist' %}">Students</a> &rsaquo;
+  Import roster file
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>
+    Upload an export of enrolled students. The file needs columns for the student
+    ID, first name, last name, and email (a term column is optional). Start with
+    <strong>Preview only</strong> to see exactly what would change, then upload
+    the same file again and choose <strong>Apply</strong>. The file itself is not
+    stored; only its name is recorded in the sync log.
+  </p>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <input type="submit" value="Run import">
+  </form>
+
+  {% if result %}
+  <h2>
+    {% if result.mode == "preview" %}Preview: nothing was changed{% else %}Import result{% endif %}
+  </h2>
+  {% if result.mode == "preview" %}
+    <p>This is what would happen if you applied this file.</p>
+  {% endif %}
+  {% if result.source %}<p>Source: {{ result.source }}</p>{% endif %}
+  <p><strong>Status: {{ result.status }}</strong></p>
+  {% if result.message %}<p class="errornote">{{ result.message }}</p>{% endif %}
+  <p>
+    Added: {{ result.added }} &middot; Updated: {{ result.updated }}
+    &middot; Deactivated: {{ result.deactivated }}
+    &middot; Set aside: {{ result.issues_total }}
+  </p>
+
+  {% for group in result.groups %}
+    <h3>{{ group.title }} ({{ group.total }})</h3>
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Details</th></tr></thead>
+      <tbody>
+        {% for row in group.rows %}
+        <tr><td>{{ row.0 }}</td><td>{{ row.1 }}</td><td>{{ row.2 }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if group.hidden %}<p>...and {{ group.hidden }} more.</p>{% endif %}
+  {% endfor %}
+
+  {% if result.issues %}
+    <h3>Set aside, not applied ({{ result.issues_total }})</h3>
+    <table>
+      <thead><tr><th>Kind</th><th>ID</th><th>Why</th></tr></thead>
+      <tbody>
+        {% for issue in result.issues %}
+        <tr><td>{{ issue.kind }}</td><td>{{ issue.identifier }}</td><td>{{ issue.reason }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

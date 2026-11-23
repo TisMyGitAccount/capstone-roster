@@ -27,7 +27,9 @@ class Command(BaseCommand):
             self.stdout.write("Roster reset.")
 
         source = MockPanthersoftSource(options["snapshot"])
-        log = sync_roster(source, options["term"])
+        log = sync_roster(
+            source, options["term"], source_label=f"demo: {options['snapshot']}"
+        )
 
         summary = (
             f"Sync {log.status}: added={log.added}, "

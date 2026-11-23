@@ -221,3 +221,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Real roster exports must never be committed; the fake demo files are the exception
+*.csv
+!roster/demo_data/csv/*.csv

@@ -50,6 +50,7 @@ class SyncLog(models.Model):
     updated = models.IntegerField(default=0)
     deactivated = models.IntegerField(default=0)
     error_message = models.TextField(blank=True)
+    source = models.CharField(max_length=200, blank=True)  # e.g. "csv: roster.csv (by admin)"
 
     class Meta:
         ordering = ["-started_at"]

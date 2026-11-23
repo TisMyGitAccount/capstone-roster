@@ -13,6 +13,8 @@ The identity rules, and the test that proves each one, are in
 
 The read-only API is documented in `docs/api.md`.
 
+The CSV import is described in `docs/csv-import.md`.
+
 ## Setup (Windows)
 
 ```
