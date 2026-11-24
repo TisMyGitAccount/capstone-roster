@@ -1,6 +1,7 @@
 from django import forms
 
 from .importing import default_term
+from .models import Student
 
 MAX_UPLOAD_BYTES = 2 * 1024 * 1024
 
@@ -34,3 +35,21 @@ class RosterImportForm(forms.Form):
 
     def clean_term(self):
         return self.cleaned_data["term"].strip().upper()
+
+
+class StatusOverrideForm(forms.Form):
+    new_status = forms.ChoiceField(choices=Student.Status.choices, label="New status")
+    reason = forms.CharField(
+        label="Reason",
+        widget=forms.Textarea(attrs={"rows": 3}),
+        help_text="Saved in the audit log with your username.",
+    )
+
+    def clean_reason(self):
+        reason = self.cleaned_data["reason"].strip()
+        if len(reason) < 10:
+            raise forms.ValidationError(
+                "Please give a reason of at least 10 characters so the audit "
+                "log explains the change."
+            )
+        return reason

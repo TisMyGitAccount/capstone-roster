@@ -4,3 +4,18 @@
   <li><a href="{% url 'admin:roster_student_import' %}" class="addlink">Import roster file</a></li>
   {{ block.super }}
 {% endblock %}
+
+{% block content %}
+  {% if sync_banner %}
+  <ul class="messagelist">
+    {% for line in sync_banner.lines %}
+    <li class="{{ line.0 }}">{{ line.1 }}</li>
+    {% endfor %}
+    {% if sync_banner.namesakes %}
+    <li>{{ sync_banner.namesakes }} students in {{ sync_banner.term }} share a name with another student.
+      <a href="?same_name=yes">Show them</a>. Names never decide identity, so always check the student ID.</li>
+    {% endif %}
+  </ul>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

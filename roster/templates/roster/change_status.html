@@ -1,0 +1,37 @@
+{% extends "admin/base_site.html" %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a> &rsaquo;
+  <a href="{% url 'admin:roster_student_changelist' %}">Students</a> &rsaquo;
+  Change status
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>
+    You are changing the status of <strong>{{ total }}</strong> student(s). A reason is
+    required and is saved in the audit log with your username. The source is still the
+    authority, so a later import can reverse this change if the source disagrees.
+  </p>
+  <ul>
+    {% for s in students_shown %}
+    <li>{{ s.last_name }}, {{ s.first_name }} ({{ s.panthersoft_id }}), currently {{ s.get_status_display }}</li>
+    {% endfor %}
+    {% if total > students_shown|length %}<li>...and {{ total|add:"-20" }} more.</li>{% endif %}
+  </ul>
+
+  <form method="post">
+    {% csrf_token %}
+    {% for pk in selected %}
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="change_status">
+    <input type="hidden" name="select_across" value="{{ select_across }}">
+    {{ form.as_p }}
+    <input type="submit" name="apply" value="Change status">
+    <a href="{{ cancel_url }}" class="button cancel-link">Cancel</a>
+  </form>
+</div>
+{% endblock %}
