@@ -90,6 +90,21 @@ class ApiAuthTests(ApiTestCase):
         with self.assertRaises(CommandError):
             call_command("create_api_token", "--name", "test-site", stdout=StringIO())
 
+    def test_create_api_token_replace_swaps_the_old_token_for_a_new_one(self):
+        out = StringIO()
+        call_command(
+            "create_api_token", "--name", "test-site", "--replace", stdout=out
+        )
+        raw = next(
+            line for line in out.getvalue().splitlines() if line.startswith("Token: ")
+        ).removeprefix("Token: ").strip()
+
+        self.assertEqual(self.get("/api/roster/status/").status_code, 401)  # old token
+        fresh = APIClient()
+        fresh.credentials(HTTP_AUTHORIZATION=f"Bearer {raw}")
+        self.assertEqual(fresh.get("/api/roster/status/").status_code, 200)
+        self.assertEqual(ApiToken.objects.filter(name="test-site").count(), 1)
+
 
 class StudentLookupTests(ApiTestCase):
     def test_active_student_is_eligible(self):

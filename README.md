@@ -15,6 +15,7 @@ See `docs/problem-statement.md` for the problem this addresses.
 - `docs/csv-import.md`: loading roster data from an exported file
 - `docs/admin-tools.md`: the sync banner, same-name flag, and status override
 - `docs/api.md`: the read-only API
+- `docs/limitations.md`: known limits and next steps
 
 ## Setup (Windows)
 
@@ -60,7 +61,7 @@ Setup (before presenting):
 ```
 python manage.py make_sample_csv
 python manage.py sync_roster --snapshot snapshot_1.json --reset
-python manage.py create_api_token --name capstone-site
+python manage.py create_api_token --name capstone-site --replace
 python manage.py runserver
 ```
 
@@ -91,14 +92,17 @@ The roster now holds the first export: 300 students.
 8. **Overrides need a reason.** Select a student, choose *Change status (a
    reason is required)*. A blank reason is refused. Then open *Roster audits*
    to show who changed what and why.
-9. **Other sites can ask.** Show the API with the token:
+9. **Other sites can ask.** In a second terminal, create a token and call the API:
 
 ```
+python manage.py create_api_token --name capstone-site --replace
 $h = @{ Authorization = "Bearer PASTE_TOKEN_HERE" }
 Invoke-RestMethod -Uri http://127.0.0.1:8000/api/roster/students/9000035/ -Headers $h
 ```
 
-   Then log out of the admin and reload an API URL to show the `401`.
+   Then log out of the admin and open the same address in the browser to
+   show the `401`. The PowerShell call still works, because the token does
+   not depend on a browser login.
 
 To rerun the demo, repeat the setup commands. The `--reset` flag clears the
 roster back to the first export.
