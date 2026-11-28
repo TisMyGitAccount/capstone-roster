@@ -198,18 +198,47 @@ class StudentAdmin(admin.ModelAdmin):
 
 @admin.register(SyncLog)
 class SyncLogAdmin(admin.ModelAdmin):
+    """Sync logs are read-only to preserve the historical audit trail."""
+
     list_display = (
         "started_at", "status", "source", "added", "updated",
         "deactivated", "finished_at",
     )
     list_filter = ("status",)
+    readonly_fields = (
+        "started_at", "finished_at", "status", "added", "updated",
+        "deactivated", "error_message", "source",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(SyncIssue)
 class SyncIssueAdmin(admin.ModelAdmin):
+    """Sync issues (identity discrepancies) are set aside by the sync engine and are read-only."""
+
     list_display = ("created_at", "kind", "identifier", "sync_log")
     list_filter = ("kind",)
     search_fields = ("identifier",)
+    readonly_fields = (
+        "sync_log", "kind", "identifier", "record", "details", "created_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(RosterAudit)

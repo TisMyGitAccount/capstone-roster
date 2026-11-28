@@ -47,6 +47,6 @@ the next step would be.
 
 ## What was tested
 
-98 automated tests cover each identity rule, the sync safeguards, the CSV
-import, the API, and the admin features (`python manage.py test`). The admin
+100 automated tests cover each identity rule, the sync safeguards, the CSV
+import, the API, and the admin and permission features (`python manage.py test`). The admin
 pages were checked by hand, and there are no automated browser tests.

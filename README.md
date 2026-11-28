@@ -12,8 +12,9 @@ See `docs/problem-statement.md` for the problem this addresses.
 
 - `docs/problem-statement.md`: the problem this project addresses
 - `docs/identity-rules.md`: the identity rules, and the test that proves each one
-- `docs/csv-import.md`: loading roster data from an exported file
+- `docs/csv_import.md`: loading roster data from an exported file
 - `docs/admin-tools.md`: the sync banner, same-name flag, and status override
+- `docs/permissions-and-data-privacy.md`: permissions and data privacy rules for roster data and discrepancies
 - `docs/api.md`: the read-only API
 - `docs/limitations.md`: known limits and next steps
 
@@ -117,13 +118,13 @@ python manage.py test
 
 - `config/`  Django project settings
 - `roster/`  Roster app (models, sync logic, identity rules, CSV import, admin, API)
-- `docs/`    Problem statement, identity rules, CSV import, admin tools, and API documentation
+- `docs/`    Problem statement, identity rules, CSV import, admin tools, permissions and data privacy, and API documentation
 
 ## Status
 
 Working: roster models, identity rules, CSV import with preview, sync with
-safeguards, admin banner, same-name flag, audited status override, read-only
-API with token authentication, and automated tests.
+safeguards, admin banner, same-name flag, audited status override, permissions
+and data privacy safeguards, read-only API with token authentication, and automated tests.
 
 Not built: a connection to the real Panthersoft (the project runs on
 simulated data), SSO login, and scheduled syncing.

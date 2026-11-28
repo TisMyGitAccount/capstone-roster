@@ -38,3 +38,5 @@ Both the override and the later change appear in the audit log.
 - Students entered by hand are audited and get a warning that the next import
   will deactivate them unless the source lists them.
 - The audit log is read-only.
+- Discrepancy records (Sync issues) and sync logs are read-only to preserve
+  tamper-evident reconciliation history (see `docs/permissions-and-data-privacy.md`).
