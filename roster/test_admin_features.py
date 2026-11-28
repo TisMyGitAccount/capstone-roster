@@ -213,3 +213,26 @@ class AuditAdminTests(AdminTestCase):
         self.assertEqual(self.client.get("/admin/roster/rosteraudit/add/").status_code, 403)
         delete_url = f"/admin/roster/rosteraudit/{entry.pk}/delete/"
         self.assertEqual(self.client.get(delete_url).status_code, 403)
+
+
+class DiscrepancyAndLogAdminPermissionTests(AdminTestCase):
+    def test_sync_issues_are_read_only_in_admin(self):
+        self.sync(self.base + [rec(60, panthersoft_id="")])
+        from .models import SyncIssue
+        issue = SyncIssue.objects.first()
+        self.assertIsNotNone(issue)
+        response = self.client.get("/admin/roster/syncissue/")
+        self.assertContains(response, "Missing ID")
+        self.assertEqual(self.client.get("/admin/roster/syncissue/add/").status_code, 403)
+        self.assertEqual(self.client.get(f"/admin/roster/syncissue/{issue.pk}/change/").status_code, 200)
+        self.assertEqual(self.client.post(f"/admin/roster/syncissue/{issue.pk}/change/", {}).status_code, 403)
+        self.assertEqual(self.client.get(f"/admin/roster/syncissue/{issue.pk}/delete/").status_code, 403)
+
+    def test_sync_logs_are_read_only_in_admin(self):
+        log = self.sync(self.base)
+        response = self.client.get("/admin/roster/synclog/")
+        self.assertContains(response, "Success")
+        self.assertEqual(self.client.get("/admin/roster/synclog/add/").status_code, 403)
+        self.assertEqual(self.client.get(f"/admin/roster/synclog/{log.pk}/change/").status_code, 200)
+        self.assertEqual(self.client.post(f"/admin/roster/synclog/{log.pk}/change/", {}).status_code, 403)
+        self.assertEqual(self.client.get(f"/admin/roster/synclog/{log.pk}/delete/").status_code, 403)
